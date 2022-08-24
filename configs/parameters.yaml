@@ -1,0 +1,8 @@
+#'''Parameters config.'''#
+
+
+# --- cmseq --- #
+
+minqual:    30
+mincov:     10
+dominant_frq_thrsh:     0.8

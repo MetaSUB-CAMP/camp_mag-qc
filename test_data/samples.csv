@@ -1,0 +1,2 @@
+sample_name,mag_dir,illumina_fwd,illumina_rev
+gut,/home/lam4003/bin/camp_mag_qc/test_data/mags,/home/lam4003/bin/camp_mag_qc/test_data/gut_1.fastq,/home/lam4003/bin/camp_mag_qc/test_data/gut_2.fastq

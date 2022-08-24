@@ -1,0 +1,2 @@
+sample_name,mag_dir,illumina_fwd,illumina_rev
+gut,/path/to/gut_mags,/path/to/gut_1.fastq,/path/to/gut_2.fastq
