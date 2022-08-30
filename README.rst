@@ -69,8 +69,9 @@ Using the Module
 3. Update the computational resources available to the pipeline in ``resources/*.yaml`` where ``*`` is either 'slurm' or 'bash'. 
 
 4. Download the database dependencies for GTDB-Tk and CheckM.
-    * Note: ``GTDBTK_DATA_PATH`` has to be ``export``ed every time you open a new instance of the terminal 
+    * Note: ``GTDBTK_DATA_PATH`` has to be ``export``-ed every time you open a new instance of the terminal 
 ::
+
     export GTDBTK_DATA_PATH='/path/to/databases/metagenomics/GTDBTk_R202'
     wget https://data.gtdb.ecogenomic.org/releases/release202/202.0/auxillary_files/gtdbtk_r202_data.tar.gz -P ${GTDBTK_DATA_PATH}
     tar xvzf ${GTDBTK_DATA_PATH}/gtdbtk_r202_data.tar.gz -C ${GTDBTK_DATA_PATH} --strip 1
@@ -86,11 +87,13 @@ Using the Module
     * The default number of cores available to Snakemake is 1 which is enough for test data, but should probably be adjusted to 10+ for a real dataset.
     * Relative or absolute paths to the Snakefile and/or the working directory (if you're running elsewhere) are accepted!
 ::
+
     python /path/to/camp_mag_qc/workflow/mag_qc.py \
         (-c max_number_of_local_cpu_cores) \
         -w /path/to/camp_mag_qc/workflow/Snakefile \
         -d /path/to/work/dir \
         -s /path/to/samples.csv
+
 - Note: This setup allows the main Snakefile to live outside of the work directory.
 
 5. To run CAMP on a job submission cluster (for now, only Slurm is supported), use the following.
@@ -98,6 +101,7 @@ Using the Module
     * In Slurm mode, the ``-c`` flag refers to the maximum number of ``sbatch`` jobs submitted in parallel, **not** the pool of cores available to run the jobs. Each job will request the number of cores specified by threads in ``configs/resources/slurm.yaml``.
     * Note: The QC pipeline is best run locally, as several rules use ``run`` wrappers which doesn't play nice with ``sbatch``.
 ::
+
     sbatch -J jobname -o jobname.log << "EOF"
     #!/bin/bash
     python /path/to/camp_mag_qc/workflow/mag_qc.py --slurm \
@@ -123,6 +127,7 @@ These instructions are meant for developers who have made a tool and want to int
 4. Add your tool's installation and running instructions to the module documentation and (if applicable) add the repo to your `Read the Docs account <https://readthedocs.org/>`_ + turn on the Read the Docs service hook.
 5. Run the pipeline once through to make sure everything works using the test data in ``test_data/`` if appropriate, or your own appropriately-sized test data. Then, generate unit tests to ensure that others can sanity-check their installations.
 ::
+
     python /path/to/camp_mag_qc/workflow/mag_qc.py --unit_test \
         -w /path/to/camp_mag_qc/workflow/Snakefile \
         -d /path/to/work/dir \
@@ -130,6 +135,7 @@ These instructions are meant for developers who have made a tool and want to int
 
 6. Increment the version number of the modular pipeline.
 ::
+
     bump2version --allow-dirty --commit --tag major workflow/__init__.py \
                  --current-version A.C.E --new-version B.D.F
 
