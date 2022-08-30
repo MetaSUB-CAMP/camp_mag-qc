@@ -181,7 +181,7 @@ checkpoint get_mag_refs:
         out_dir = join(dirs.OUT, '3_dnadiff', '{sample}'),
         sample = '{sample}',
     run:    
-        if not os.path.isdir(params.out_dir): os.makedirs(params.out_dir)
+        if not isdir(params.out_dir): makedirs(params.out_dir)
         df = pd.read_csv(str(input), sep = '\t')
         df.apply(lambda row : pair_mag_refs(row, params.sample, dirs.TMP, params.out_dir), axis = 1)
         open(str(output), 'w').close()
