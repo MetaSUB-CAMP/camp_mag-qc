@@ -1,8 +1,6 @@
-======
 ============
 CAMP MAG QC
 ============
-======
 
 
 .. image:: https://readthedocs.org/projects/camp-mag_qc/badge/?version=latest
@@ -22,9 +20,9 @@ The CAMP MAG quality-checking pipeline wraps several tools to assess the overall
 Installation
 ------------
 
-1. Clone repo from `github <https://github.com/lauren-mak/camp_mag_qc>_`. 
+1. Clone repo from `Github <https://github.com/MetaSUB-CAMP/camp_mag_qc>`_. 
 
-2. Set up the conda environment (contains, Snakemake) using ``configs/conda/camp_mag_qc.yaml``. 
+2. Set up the conda environment (contains, Snakemake) using ``configs/conda/mag_qc.yaml``. 
 
 3. Make sure the installed pipeline works correctly. ``pytest`` only generates temporary outputs so no files should be created.
 ::
@@ -58,15 +56,15 @@ Using the Module
         └── __init__.py
 - ``workflow/mag_qc.py``: Click-based CLI that wraps the ``snakemake`` and unit test generation commands for clean management of parameters, resources, and environment variables.
 - ``workflow/Snakefile``: The ``snakemake`` pipeline. 
-- ``workflow/utils.py``: Utility functions used in the pipeline and the CLI.
+- ``workflow/utils.py``: Sample ingestion and work directory setup functions, and other utility functions used in the pipeline and the CLI.
 
 1. Make your own ``samples.csv`` based on the template in ``configs/samples.csv``. Sample test data can be found in ``test_data/``. 
-    * ``ingest_samples`` in ``workflow/utils.py`` expects Illumina reads in FastQ (may be gzipped) form and de novo assembled contigs in FastA form
-    * ``samples.csv`` requires either absolute paths or symlinks relative to the directory that the module is being run in
+    - ``ingest_samples`` in ``workflow/utils.py`` expects Illumina reads in FastQ (may be gzipped) form and de novo assembled contigs in FastA form
+    - ``samples.csv`` requires either absolute paths or paths relative to the directory that the module is being run in
 
 2. Update the relevant parameters in ``configs/parameters.yaml``.
 
-3. Update the computational resources available to the pipeline in ``resources/*.yaml`` where ``*`` is either 'slurm' or 'bash'. 
+3. Update the computational resources available to the pipeline in ``resources.yaml``. 
 
 4. Download the database dependencies for GTDB-Tk and CheckM.
     * Note: ``GTDBTK_DATA_PATH`` has to be ``export``-ed every time you open a new instance of the terminal 
@@ -84,52 +82,68 @@ Using the Module
     checkm data setRoot ${CHECK_DATA_PATH}
 
 5. To run CAMP on the command line, use the following, where ``/path/to/work/dir`` is replaced with the absolute path of your chosen working directory, and ``/path/to/samples.csv`` is replaced with your copy of ``samples.csv``. 
-    * The default number of cores available to Snakemake is 1 which is enough for test data, but should probably be adjusted to 10+ for a real dataset.
-    * Relative or absolute paths to the Snakefile and/or the working directory (if you're running elsewhere) are accepted!
+    - The default number of cores available to Snakemake is 1 which is enough for test data, but should probably be adjusted to 10+ for a real dataset.
+    - Relative or absolute paths to the Snakefile and/or the working directory (if you're running elsewhere) are accepted!
 ::
 
     python /path/to/camp_mag_qc/workflow/mag_qc.py \
         (-c max_number_of_local_cpu_cores) \
-        -w /path/to/camp_mag_qc/workflow/Snakefile \
         -d /path/to/work/dir \
         -s /path/to/samples.csv
 
-- Note: This setup allows the main Snakefile to live outside of the work directory.
+* Note: This setup allows the main Snakefile to live outside of the work directory.
 
 5. To run CAMP on a job submission cluster (for now, only Slurm is supported), use the following.
-    * ``--slurm`` is an optional flag that submits all rules in the Snakemake pipeline as ``sbatch`` jobs. 
-    * In Slurm mode, the ``-c`` flag refers to the maximum number of ``sbatch`` jobs submitted in parallel, **not** the pool of cores available to run the jobs. Each job will request the number of cores specified by threads in ``configs/resources/slurm.yaml``.
-    * Note: The QC pipeline is best run locally, as several rules use ``run`` wrappers which doesn't play nice with ``sbatch``.
+    - ``--slurm`` is an optional flag that submits all rules in the Snakemake pipeline as ``sbatch`` jobs. 
+    - In Slurm mode, the ``-c`` flag refers to the maximum number of ``sbatch`` jobs submitted in parallel, **not** the pool of cores available to run the jobs. Each job will request the number of cores specified by threads in ``configs/resources/slurm.yaml``.
 ::
 
     sbatch -J jobname -o jobname.log << "EOF"
     #!/bin/bash
     python /path/to/camp_mag_qc/workflow/mag_qc.py --slurm \
         (-c max_number_of_parallel_jobs_submitted) \
-        -w /path/to/camp_mag_qc/workflow/Snakefile \
         -d /path/to/work/dir \
         -s /path/to/samples.csv
     EOF
 
+6. After checking over ``final_reports/`` and making sure you have everything you need, you can delete all intermediate files to save space. 
+::
+
+    python /path/to/camp_mag_qc/workflow/mag_qc.py cleanup \
+        -d /path/to/work/dir \
+        -s /path/to/samples.csv
+
+7. If for some reason the module keeps failing, CAMP can print a script containing all of the remaining commands that can be run manually. 
+::
+
+    python /path/to/camp_mag_qc/workflow/mag_qc.py --dry_run \
+        -d /path/to/work/dir \
+        -s /path/to/samples.csv > cmds.txt
+    python /path/to/camp_mag_qc/workflow/mag_qc.py commands cmds.txt
+
+Extending the Module
 Extending the Module
 --------------------
 
 We love to see it! This module was partially envisioned as a dependable, prepackaged sandbox for developers to test their shiny new tools in. 
 
-These instructions are meant for developers who have made a tool and want to integrate or demo its functionality as part of a standard mag_qc workflow, or developers who want to integrate an existing mag_qc tool. 
+These instructions are meant for developers who have made a tool and want to integrate or demo its functionality as part of the standard {{ cookiecutter.module_name }} workflow, or developers who want to integrate an existing tool. 
 
 1. Write a module rule that wraps your tool and integrates its input and output into the pipeline. 
-    * This is a great `Snakemake tutorial <https://bluegenes.github.io/hpc-snakemake-tips/>`_ for writing basic Snakemake rules.
-    * If you're adding new tools from an existing YAML, use ``conda env update --file configs/conda/camp_mag_qc.yaml --prune``.
+    - This is a great `Snakemake tutorial <https://bluegenes.github.io/hpc-snakemake-tips/>`_ for writing basic Snakemake rules.
+    - If you're adding new tools from an existing YAML, use ``conda env update --file configs/conda/existing.yaml --prune``.
+    - If you're using external scripts and resource files that i) cannot easily be integrated into either `utils.py` or `parameters.yaml`, and ii) are not as large as databases that would justify an externally stored download, add them to ``workflow/ext/`` or ``workflow/ext/scripts/`` and use ``rule external_rule`` as a template to wrap them. 
 2. Update the ``make_config`` in ``workflow/Snakefile`` rule to check for your tool's output files. Update ``samples.csv`` to document its output if downstream modules/tools are meant to ingest it. 
-3. If applicable, update the default conda config using ``conda env export > config/conda/camp_mag_qc.yaml`` with your tool and its dependencies. 
+    - If you plan to integrate multiple tools into the module that serve the same purpose but with different input or output requirements (ex. for alignment, Minimap2 for Nanopore reads vs. Bowtie2 for Illumina reads), you can toggle between these different 'streams' by setting the final files expected by ``make_config`` using the example function ``workflow_mode``.
+    - Update the description of the ``samples.csv`` input fields in the CLI script ``workflow/{{ cookiecutter.module_slug }}.py``. 
+3. If applicable, update the default conda config using ``conda env export > config/conda/{{ cookiecutter.module_slug }}.yaml`` with your tool and its dependencies. 
     - If there are dependency conflicts, make a new conda YAML under ``configs/conda`` and specify its usage in specific rules using the ``conda`` option (see ``first_rule`` for an example).
 4. Add your tool's installation and running instructions to the module documentation and (if applicable) add the repo to your `Read the Docs account <https://readthedocs.org/>`_ + turn on the Read the Docs service hook.
 5. Run the pipeline once through to make sure everything works using the test data in ``test_data/`` if appropriate, or your own appropriately-sized test data. Then, generate unit tests to ensure that others can sanity-check their installations.
+    * Note: Python functions imported from ``utils.py`` into ``Snakefile`` should be debugged on the command-line first before being added to a rule because Snakemake doesn't port standard output/error well when using ``run:``.
 ::
 
     python /path/to/camp_mag_qc/workflow/mag_qc.py --unit_test \
-        -w /path/to/camp_mag_qc/workflow/Snakefile \
         -d /path/to/work/dir \
         -s /path/to/samples.csv
 
@@ -153,7 +167,7 @@ These instructions are meant for developers who have made a tool and want to int
 Credits
 -------
 
-* This package was created with `Cookiecutter <https://github.com/cookiecutter/cookiecutter>`_ as a simplified version of the `audreyr/cookiecutter-pypackage project template <https://github.com/audreyr/cookiecutter-pypackage>`_.
+* This package was created with `Cookiecutter <https://github.com/cookiecutter/cookiecutter>`_ as a simplified version of the `project template <https://github.com/audreyr/cookiecutter-pypackage>`_.
 * This module is heavily inspired by four Snakefiles from `MAG Snakemake workflow <https://github.com/Finn-Lab/MAG_Snakemake_wf>`_ (Saheb Kashaf et al. 2021).
 * The MAG N50, size, and GC calculation rule was adapted from a script in `MetaWRAP <https://github.com/bxlab/metaWRAP>`_. 
 * Free software: MIT 

@@ -6,6 +6,7 @@
 
 import glob
 import gzip
+import os
 from os import makedirs, symlink
 from os.path import abspath, basename, exists, join
 import pandas as pd
@@ -24,8 +25,6 @@ def ingest_samples(samples, tmp):
     df = pd.read_csv(samples, header = 0, index_col = 0) # name, mag_dir, fwd, rev
     s = list(df.index)
     lst = df.values.tolist()
-    # for f in os.listdir(tmp):
-    #     os.remove(join(tmp, f))
     for i,l in enumerate(lst):
         if not exists(join(tmp, s[i])): # Make a temporary directory for all of the MAGs in the sample
             makedirs(join(tmp, s[i]))
@@ -65,6 +64,35 @@ class Workflow_Dirs:
             makedirs(join(self.LOG, 'cmseq'))
             makedirs(join(self.LOG, 'gtdbtk'))
             makedirs(join(self.LOG, 'dnadiff'))
+
+
+def cleanup_files(work_dir, df):
+    smps = list(df.index)
+    for s in smps: 
+        d = join(dirs.OUT, '1_cmseq', s)
+        os.system("rm -rf " + d)
+
+
+def print_cmds(log):
+    fo = basename(log).split('.')[0] + '.cmds'
+    lines = open(log, 'r').read().split('\n')
+    fi = [l for l in lines if l != '']
+    write = False
+    with open(fo, 'w') as f_out:
+        for l in fi:
+            if 'rule' in l:
+                f_out.write('# ' + l.strip().replace('rule ', '').replace(':', '') + '\n')
+            if 'wildcards' in l: 
+                f_out.write('# ' + l.strip().replace('wildcards: ', '') + '\n')
+            if 'resources' in l:
+                write = True 
+                l = ''
+            if '[' in l: 
+                write = False 
+            if write:
+                f_out.write(l.strip() + '\n')
+            if 'rule make_config' in l:
+                break
 
 
 # --- Workflow functions --- #
