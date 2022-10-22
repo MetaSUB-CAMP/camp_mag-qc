@@ -20,7 +20,11 @@ The CAMP MAG quality-checking pipeline wraps several tools to assess the overall
 Installation
 ------------
 
+<<<<<<< HEAD
 1. Clone repo from `Github <https://github.com/MetaSUB-CAMP/camp_mag_qc>`_. 
+=======
+1. Clone repo from `Github <https://github.com/lauren-mak/camp_mag_qc>`_. 
+>>>>>>> main
 
 2. Set up the conda environment (contains, Snakemake) using ``configs/conda/mag_qc.yaml``. 
 
