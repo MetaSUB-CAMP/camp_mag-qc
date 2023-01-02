@@ -1,0 +1,13 @@
+#'''Parameters config.'''#
+
+
+# --- cmseq --- #
+
+minqual:    30
+mincov:     10
+dominant_frq_thrsh:     0.8
+
+
+# --- quast --- #
+
+min_contig_len:   50

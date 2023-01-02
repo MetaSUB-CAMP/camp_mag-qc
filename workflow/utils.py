@@ -13,14 +13,6 @@ import pandas as pd
 import shutil
 
 
-def extract_from_gzip(p, out):
-    if open(p, 'rb').read(2) == b'\x1f\x8b': # If the input is gzipped
-        with gzip.open(p, 'rb') as f_in, open(out, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
-    else: # Otherwise, symlink
-        symlink(p, out)
-
-
 def ingest_samples(samples, tmp):
     df = pd.read_csv(samples, header = 0, index_col = 0) # name, mag_dir, fwd, rev
     s = list(df.index)
@@ -34,9 +26,14 @@ def ingest_samples(samples, tmp):
                         prefix = basename(m).split('.')[1]
                         symlink(abspath(m), join(tmp, s[i], prefix + '.fa'))
                         f_out.write(str(prefix) + '\n')
-            extract_from_gzip(abspath(l[1]), join(tmp, s[i] + '_1.fastq'))
-            extract_from_gzip(abspath(l[2]), join(tmp, s[i] + '_2.fastq'))
+            symlink(abspath(l[1]), join(tmp, s[i] + '_1.fastq.gz'))
+            symlink(abspath(l[2]), join(tmp, s[i] + '_2.fastq.gz'))
     return s
+
+
+def check_make(d):
+    if not exists(d):
+        makedirs(d)
 
 
 class Workflow_Dirs:
@@ -49,28 +46,23 @@ class Workflow_Dirs:
         self.OUT = join(work_dir, module)
         self.TMP = join(work_dir, 'tmp') 
         self.LOG = join(work_dir, 'logs') 
-        if not exists(self.OUT):
-            makedirs(self.OUT)
-            makedirs(join(self.OUT, '0_checkm'))
-            makedirs(join(self.OUT, '1_cmseq'))
-            makedirs(join(self.OUT, '2_gtdbtk'))
-            makedirs(join(self.OUT, '3_dnadiff'))
-            makedirs(join(self.OUT, 'final_reports'))
-        if not exists(self.TMP):
-            makedirs(self.TMP)
-        if not exists(self.LOG):
-            makedirs(self.LOG)
-            makedirs(join(self.LOG, 'checkm'))
-            makedirs(join(self.LOG, 'cmseq'))
-            makedirs(join(self.LOG, 'gtdbtk'))
-            makedirs(join(self.LOG, 'dnadiff'))
+        check_make(self.OUT)
+        out_dirs = ['0_checkm', '1_cmseq', '2_gtdbtk', '3_dnadiff', '4_quast', 'final_reports']
+        for d in out_dirs: 
+            check_make(join(self.OUT, d))
+        # Add a subdirectory for symlinked-in input files
+        check_make(self.TMP)
+        # Add custom subdirectories to organize rule logs
+        check_make(self.LOG)
+        log_dirs = ['checkm', 'gtdbtk', 'cmseq', 'dnadiff', 'quast']
+        for d in log_dirs: 
+            check_make(join(self.LOG, d))
 
 
 def cleanup_files(work_dir, df):
     smps = list(df.index)
     for s in smps: 
-        d = join(dirs.OUT, '1_cmseq', s)
-        os.system("rm -rf " + d)
+        os.system('rm  ' + join(dirs.OUT, '1_cmseq', s, '*bam*'))
 
 
 def print_cmds(log):
@@ -112,7 +104,7 @@ def add_bin_num(fi, bin_num, fo):
                 ctg_name = line.strip('\n').replace('>','')
                 new_ctg_name = ">%s_%i\t%s" % (bin_num, ctg_num, ctg_name) 
                 f_out.write(new_ctg_name + '\n')
-                print(new_ctg_name)
+                # print(new_ctg_name)
                 ctg_num += 1
             else:
                 f_out.write(line)
@@ -120,20 +112,19 @@ def add_bin_num(fi, bin_num, fo):
 
 def get_bin_nums(s, d):
     tmp = open(join(d, str(s) + '.out'), 'r').readlines()
-    print(*[i.strip() for i in tmp])
+    # print(*[i.strip() for i in tmp])
     return [i.strip() for i in tmp]
 
 
-def pair_mag_refs(row, sample, tmp_dir, out_dir):
-    m_path = join(tmp_dir, sample, str(row['user_genome']) + '.fa')
+def pair_mag_refs(row, out_dir):
     r = row['fastani_reference']
     r_path = 'None'
     if str(r) != 'nan':
         GTDB = getenv('GTDBTK_DATA_PATH')
         parts = r.split('_')
         r_path = join(GTDB, 'fastani/database', parts[0], parts[1][0:3], parts[1][3:6], parts[1][6:9], r + '_genomic.fna.gz')
-    with open(join(out_dir, str(row['user_genome']) + '.ref.tsv'), 'w') as f_out:
-        f_out.write(m_path + '\t' + r_path + '\n')
+    with open(join(out_dir, str(row['user_genome']) + '.ref'), 'w') as f_out:
+        f_out.write(r_path + '\n')
 
 
 def parse_dnadiff(fi, fo):
@@ -180,7 +171,37 @@ def polymut_from_cmseq(bam, mag, gff, fo, minqual, mincov, dominant_frq_thrsh):
         f_out.write(line + '\n')
 
 
-def summarize_reports(checkm, n50_sz, cmseq, gtdb, diff, output):
+def aggregate_quast(fi_lst, fo):
+    df_lst = []
+    unc_mags = []
+    for fi in fi_lst:
+        if getsize(fi) != 0:
+            df_lst.append(pd.read_csv(fi, header = 0, sep = '\t').transpose())
+        else: # If QUAST report is empty, then no classification
+            unc_mags.append(fi.split('/')[-2])
+    if len(df_lst):
+        raw_df = pd.concat(df_lst)
+        raw_df.reset_index(inplace = True)
+        df = raw_df[['index', '# contigs', 'Total length', 'Genome fraction (%)', 'NG50', 'NA50', '# misassemblies', '# misassembled contigs', 'Misassembled contigs length', '# unaligned contigs', 'Unaligned length']]
+        col_names = ['mag', 'num_ctgs', 'size', 'genome_fraction', 'NG50', 'NA50', 'num_misassemb', 'num_misassemb_ctgs', 'misassemb_ctg_len', 'num_unaln_ctgs', 'unaln_len']
+        df.columns = col_names
+        df['prop_misassemb_ctgs'] = df.apply(lambda row : float(row[7]/row[1]), axis = 1) 
+        df['prop_misassemb_len'] = df.apply(lambda row : float(row[8]/row[2]), axis = 1) 
+        df['prop_unaln_ctgs'] = df.apply(lambda row : float(row[9]/row[1]), axis = 1) 
+        df['prop_misassemb_ctgs'] = df.apply(lambda row : float(row[10]/row[2]), axis = 1) 
+        for m in unc_mags: 
+            unc_mag_row  = {} # Create empty rows for unclassified MAGs
+            for c in col_names + ['prop_misassemb_ctgs', 'prop_misassemb_len', 'prop_unaln_ctgs', 'prop_unaln_len']:
+                unc_mag_row[c] = 0
+            unc_mag_row['mag'] = m
+            df = df.append(unc_mag_row, ignore_index = True)
+        fin_df = df[['mag', 'genome_fraction', 'NG50', 'NA50', 'num_misassemb', 'prop_misassemb_ctgs', 'prop_misassemb_len', 'prop_unaln_ctgs', 'prop_unaln_len']]
+        df.to_csv(fo, header = True, index = False)
+    else:
+        open(str(fo), 'w').close()
+
+
+def summarize_reports(checkm, n50_sz, cmseq, gtdb, diff, quast, output):
     # Load completeness and contamination (mag,completeness,contamination)
     summ_df = pd.read_csv(checkm, header = 0)
     summ_df['mag'] = summ_df.apply(lambda row : str(row[0]).split('.')[0], axis = 1) # Reshape X.fa into X
@@ -204,11 +225,13 @@ def summarize_reports(checkm, n50_sz, cmseq, gtdb, diff, output):
         info = line.strip().split('\t')
         size_dct[info[0]] = eval(info[1])
     raw_df = pd.DataFrame(data = size_dct).transpose()
-    size_df = raw_df[['GC', 'N50 (contigs)', 'Genome size']]
+    size_df = raw_df[['GC', 'N50 (contigs)', '# contigs', 'Genome size']]
     size_df = size_df.reset_index()
-    size_df.columns = ['mag', 'GC', 'N50', 'size']
+    size_df.columns = ['mag', 'GC', 'N50', 'num_ctgs', 'size']
+    # Load reference genome-based completion, misassembly, and unaligned statistics from QUAST report
+    quas_df = pd.read_csv(quast, header = 0)
     # Put all of the dataframes together and output
-    for df in [cmsq_df, gtdb_df, diff_df, size_df]:
+    for df in [cmsq_df, gtdb_df, diff_df, size_df, quas_df]:
         summ_df = pd.merge(summ_df, df, on = 'mag', how = 'outer')
     # Add in standard quality thresholds
     summ_df['Quality'] = np.where((summ_df['completeness'] >= 90) & (summ_df['contamination'] <= 5), 'High quality', 'Medium quality') # Quality labels for DNAdiff figure
